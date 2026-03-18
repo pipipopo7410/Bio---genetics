@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小怪獸遺傳實驗室 - 教學精煉版</title>
+    <title>小怪獸遺傳實驗室 - 教學精煉修正版</title>
     <style>
         :root { --primary-color: #8e44ad; --dad-color: #3498db; --mom-color: #e74c3c; }
         body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f0f4f7; margin: 0; padding: 5px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
         /* 頂部控制列與性狀表 */
-        .top-container { width: 98%; max-width: 1000px; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 5px; }
+        .top-container { width: 98%; max-width: 1000px; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 5px; box-sizing: border-box; }
         .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .trait-legend-mini { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; border-top: 1px solid #eee; padding-top: 5px; color: #555; }
         .trait-tag { background: #f8f9fa; padding: 2px 8px; border-radius: 4px; border-left: 3px solid var(--primary-color); }
@@ -51,7 +51,9 @@
         .short { width: 14px; height: 40px; }
         .gene-site { width: 80%; height: 1px; background: rgba(0,0,0,0.2); position: relative; }
         .gene-label { position: absolute; top: -7px; font-size: 10px; font-weight: bold; white-space: nowrap; }
-        .label-left { left: -16px; } .label-right { right: -16px; }
+        
+        /* === 修正：標籤緊貼染色體 (-13px) === */
+        .label-left { left: -13px; } .label-right { right: -13px; }
 
         #combineBtn { padding: 10px 30px; font-size: 18px; font-weight: bold; cursor: pointer; background: var(--primary-color); color: white; border: none; border-radius: 50px; display: none; margin: 5px 0; z-index: 50; }
         #resetBtn { padding: 6px 15px; font-size: 14px; font-weight: bold; background: #e67e22; color: white; border: none; border-radius: 8px; cursor: pointer; }
@@ -267,16 +269,29 @@
             const spermChrs = Array.from(sperm.querySelectorAll('.chromosome'));
             const eggChrs = Array.from(egg.querySelectorAll('.chromosome'));
             const allChrs = [...spermChrs, ...eggChrs];
+            // 同源染色體自動排序 (爸1-媽1, 爸2-媽2, 爸3-媽3)
             allChrs.sort((a, b) => (a.dataset.type !== b.dataset.type) ? a.dataset.type - b.dataset.type : (a.dataset.side === 'dad' ? -1 : 1));
 
             allChrs.forEach((c, i) => {
                 c.style.position = 'absolute'; c.style.transform = 'scale(0.8)';
-                const pairIndex = Math.floor(i / 2); const offsetInPair = i % 2;
+                const pairIndex = Math.floor(i / 2); const offsetInPair = i % 2; // 0 是左側(爸), 1 是右側(媽)
+                
+                // 設定染色體位置，稍微拉開同源染色體間距
                 c.style.left = (20 + pairIndex * 60 + offsetInPair * 20) + 'px';
                 const offsetTop = c.classList.contains('long') ? 45 : (c.classList.contains('mid') ? 30 : 15);
                 c.style.top = (95 - offsetTop) + 'px';
+                
+                // === 修正：爸爸標籤全部靠左，媽媽標籤全部靠右 ===
                 const labels = c.querySelectorAll('.gene-label');
-                labels.forEach(l => { l.style.left = '-16px'; l.style.right = 'auto'; });
+                labels.forEach(l => {
+                    if (offsetInPair === 0) {
+                        // 爸爸的染色體（左側）：標籤靠左
+                        l.style.left = '-13px'; l.style.right = 'auto';
+                    } else {
+                        // 媽媽的染色體（右側）：標籤靠右
+                        l.style.right = '-13px'; l.style.left = 'auto';
+                    }
+                });
                 childCell.appendChild(c);
             });
             renderMonster('childMonster', collectGenesFromDiv('childCell'));
