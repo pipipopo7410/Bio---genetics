@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>小怪獸遺傳實驗室 - 原位分離視覺化版</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #eef2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; min-height: 100vh; overflow-x: hidden; }
+        .lab-container { display: flex; flex-direction: column; align-items: center; gap: 30px; width: 100%; max-width: 1200px; position: relative; }
+        
+        .side-panel {
+            position: fixed; left: 20px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 15px; z-index: 100;
+        }
+
+        .trait-legend {
+            background: white; padding: 20px; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 5px solid #8e44ad;
+            line-height: 2;
+        }
+        .trait-legend h3 { margin-top: 0; color: #8e44ad; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 12px; font-size: 20px; }
+        .trait-item { font-size: 16px; font-weight: bold; color: #34495e; }
+
+        #resetBtn { 
+            padding: 12px 20px; font-size: 18px; font-weight: bold; 
+            background: #e67e22; color: white; border: none; border-radius: 10px; 
+            cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(230,126,34,0.3);
+        }
+        #resetBtn:hover { background: #d35400; transform: translateY(-2px); }
+
+        .row { display: flex; justify-content: space-around; align-items: flex-start; width: 100%; }
+        .panel { display: flex; flex-direction: column; align-items: center; gap: 15px; width: 320px; position: relative; }
+        .cell { width: 280px; height: 280px; border-radius: 50%; border: 4px solid #333; background: white; position: relative; box-shadow: inset 0 0 15px rgba(0,0,0,0.1); z-index: 10; }
+        .label { font-size: 22px; font-weight: bold; color: #2c3e50; padding: 5px 20px; border-bottom: 3px solid #8e44ad; margin-bottom: 10px; }
+        
+        .gamete-container { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; height: 250px; }
+
+        .sperm-shape { 
+            width: 120px; height: 140px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; 
+            border: 3px solid #3498db; background: rgba(255,255,255,0.8); position: relative; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            gap: 15px; transform: rotate(90deg); transition: 1s;
+        }
+        .sperm-shape::after { content: ''; position: absolute; bottom: -40px; left: 50%; width: 10px; height: 50px; background: #3498db; border-radius: 0 0 5px 5px; transform: translateX(-50%); }
+
+        .egg-shape { 
+            width: 200px; height: 200px; border-radius: 50%; border: 4px solid #e74c3c; 
+            background: rgba(255,255,255,0.8); position: relative; display: flex; justify-content: center; align-items: center; 
+            gap: 8px; transition: 1s;
+        }
+
+        .chromosome { position: absolute; border-radius: 10px; cursor: grab; display: flex; flex-direction: column; justify-content: space-around; align-items: center; border: 1px solid rgba(0,0,0,0.2); z-index: 20; }
+        /* 淡化狀態 */
+        .chromosome.faded { opacity: 0.2; cursor: default; z-index: 5; pointer-events: none; }
+
+        .gamete-container .chromosome { position: relative !important; top: auto !important; left: auto !important; margin: 0 !important; transform: scale(0.5) !important; z-index: 30; }
+        .sperm-shape .chromosome { transform: scale(0.5) rotate(-90deg) !important; }
+        
+        .long { width: 16px; height: 120px; } 
+        .mid { width: 16px; height: 80px; } 
+        .short { width: 16px; height: 50px; }
+        .gene-site { width: 80%; height: 2px; background: rgba(0,0,0,0.3); position: relative; }
+        .gene-label { position: absolute; top: -8px; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 0 #fff; }
+        .label-right { right: -20px; } .label-left { left: -20px; }
+
+        #combineBtn { padding: 15px 50px; font-size: 24px; font-weight: bold; cursor: pointer; background: #8e44ad; color: white; border: none; border-radius: 50px; display: none; margin: 20px 0; z-index: 50; box-shadow: 0 5px 15px rgba(142,68,173,0.3); }
+        
+        .monster-view { width: 300px; height: 300px; position: relative; background: #fff; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; z-index: 5; }
+        .monster-layer { position: absolute; width: 100%; height: 100%; top: 0; left: 0; object-fit: contain; pointer-events: none; }
+        
+        #childPanel, #childCellPanel { visibility: hidden; opacity: 0; transition: 1s; }
+        .dragging-disabled { pointer-events: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="side-panel">
+        <button id="resetBtn" onclick="resetExperiment()">🔄 實驗重新開始</button>
+        <div class="trait-legend">
+            <h3>性狀對照表</h3>
+            <div class="trait-item">A：身體顏色</div>
+            <div class="trait-item">B：有無翅膀</div>
+            <div class="trait-item">D：手的數量</div>
+            <div class="trait-item">E：頭上長角</div>
+            <div class="trait-item">F：腳的長短</div>
+            <div class="trait-item">G：身體斑紋</div>
+            <div class="trait-item">H：眼睛數量</div>
+        </div>
+    </div>
+
+    <div class="lab-container" id="mainLab">
+        <div class="row">
+            <div class="panel" id="dadPanel">
+                <div class="label">爸爸 (2n)</div>
+                <div id="dadCell" class="cell" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'dad')"></div>
+                <div class="gamete-container">
+                    <div id="spermArea" class="sperm-shape" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'dad')"></div>
+                </div>
+            </div>
+            <div class="panel" id="childCellPanel">
+                <div class="label">受精卵 (2n)</div>
+                <div id="childCell" class="cell"></div>
+            </div>
+            <div class="panel" id="momPanel">
+                <div class="label">媽媽 (2n)</div>
+                <div id="momCell" class="cell" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'mom')"></div>
+                <div class="gamete-container">
+                    <div id="eggArea" class="egg-shape" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'mom')"></div>
+                </div>
+            </div>
+        </div>
+
+        <button id="combineBtn" onclick="startFertilization()">受精作用開始</button>
+
+        <div class="row">
+            <div class="panel">
+                <div id="dadMonster" class="monster-view"></div>
+                <div style="font-weight:bold; color:#3498db; margin-top:5px;">爸爸長相</div>
+            </div>
+            <div class="panel" id="childPanel">
+                <div id="childMonster" class="monster-view"></div>
+                <div style="font-weight:bold; color:#8e44ad; margin-top:5px;">小孩長相</div>
+            </div>
+            <div class="panel">
+                <div id="momMonster" class="monster-view"></div>
+                <div style="font-weight:bold; color:#e74c3c; margin-top:5px;">媽媽長相</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const imgFiles = {
+        bodyGreen: '體1.png', bodyYellow: '體2.png', wing: '翅膀.png',
+        hand2: '手1.png', hand4: '手2.png', horn: '角.png',
+        legYes: '腳2.png', legNo: '腳1.png', mark: '斑紋.png',
+        eye2: '眼1.png', eye3: '眼2.png'
+    };
+
+    const dnaData = {
+        dad: [
+            {id:'d1a',size:'long',type:1,labels:['A','b','d'],color:'#3498db',x:35,y:75},
+            {id:'d1b',size:'long',type:1,labels:['a','B','d'],color:'#85c1e9',x:65,y:75},
+            {id:'d2a',size:'mid',type:2,labels:['e','F'],color:'#3498db',x:125,y:95},
+            {id:'d2b',size:'mid',type:2,labels:['E','f'],color:'#85c1e9',x:155,y:95},
+            {id:'d3a',size:'short',type:3,labels:['g','h'],color:'#3498db',x:215,y:112},
+            {id:'d3b',size:'short',type:3,labels:['G','h'],color:'#85c1e9',x:245,y:112}
+        ],
+        mom: [
+            {id:'m1a',size:'long',type:1,labels:['A','b','D'],color:'#e74c3c',x:35,y:75},
+            {id:'m1b',size:'long',type:1,labels:['a','b','d'],color:'#f1948a',x:65,y:75},
+            {id:'m2a',size:'mid',type:2,labels:['e','f'],color:'#e74c3c',x:125,y:95},
+            {id:'m2b',size:'mid',type:2,labels:['e','F'],color:'#f1948a',x:155,y:95},
+            {id:'m3a',size:'short',type:3,labels:['g','H'],color:'#e74c3c',x:215,y:112},
+            {id:'m3b',size:'short',type:3,labels:['g','h'],color:'#f1948a',x:245,y:112}
+        ]
+    };
+
+    function init() {
+        spawnChromosomes('dad', 'dadCell');
+        spawnChromosomes('mom', 'momCell');
+        renderMonster('dadMonster', collectGenesFromDiv('dadCell'));
+        renderMonster('momMonster', collectGenesFromDiv('momCell'));
+    }
+
+    function spawnChromosomes(side, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        dnaData[side].forEach((d, index) => {
+            const div = document.createElement('div');
+            div.className = `chromosome ${d.size}`;
+            div.id = d.id; div.draggable = true;
+            div.style.backgroundColor = d.color;
+            div.style.left = d.x+'px'; div.style.top = d.y+'px';
+            div.dataset.genes = JSON.stringify(d.labels);
+            div.dataset.side = side;
+            div.dataset.type = d.type; 
+            div.ondragstart = (e) => e.dataTransfer.setData('text', e.target.id);
+            const labelClass = (index % 2 === 0) ? 'label-left' : 'label-right';
+            d.labels.forEach(l => {
+                const s = document.createElement('div'); s.className = 'gene-site';
+                s.innerHTML = `<span class="gene-label ${labelClass}">${l}</span>`; div.appendChild(s);
+            });
+            container.appendChild(div);
+        });
+    }
+
+    function handleDrop(e, side) {
+        e.preventDefault();
+        const id = e.dataTransfer.getData('text');
+        const el = document.getElementById(id);
+        if (!el || el.dataset.side !== side) return;
+        
+        const target = e.currentTarget;
+        const cell = document.getElementById(side + 'Cell');
+
+        if (target.id === 'spermArea' || target.id === 'eggArea') {
+            const currentChrs = target.querySelectorAll('.chromosome');
+            const newType = el.dataset.type;
+            let typeExists = false;
+            currentChrs.forEach(c => { if(c.dataset.type === newType) typeExists = true; });
+            if (typeExists) { alert("配子中每一對同源染色體只能選擇一條！"); return; }
+            
+            // === 核心修改：在細胞原位留下淡化的影子 ===
+            const shadow = el.cloneNode(true);
+            shadow.id = id + "_shadow";
+            shadow.classList.add('faded');
+            shadow.draggable = false;
+            cell.appendChild(shadow);
+
+            el.style.position = 'relative'; el.style.left = 'auto'; el.style.top = 'auto';
+            target.appendChild(el);
+        } else if (target.className.includes('cell')) {
+            // 如果拖回細胞，移除影子並恢復
+            const shadow = document.getElementById(id + "_shadow");
+            if (shadow) shadow.remove();
+            
+            const d = dnaData[side].find(x => x.id === id);
+            el.style.position = 'absolute'; el.style.left = d.x+'px'; el.style.top = d.y+'px';
+            target.appendChild(el);
+        }
+        scanAll();
+    }
+
+    function scanAll() {
+        const spermOk = document.getElementById('spermArea').children.length === 3;
+        const eggOk = document.getElementById('eggArea').children.length === 3;
+        document.getElementById('combineBtn').style.display = (spermOk && eggOk) ? 'block' : 'none';
+    }
+
+    function collectGenesFromDiv(divId) {
+        let genes = [];
+        const chrs = document.getElementById(divId).querySelectorAll('.chromosome:not(.faded)');
+        chrs.forEach(c => genes = genes.concat(JSON.parse(c.dataset.genes)));
+        return genes;
+    }
+
+    function startFertilization() {
+        document.getElementById('combineBtn').style.display = 'none';
+        document.getElementById('mainLab').classList.add('dragging-disabled');
+        const sperm = document.getElementById('spermArea');
+        const egg = document.getElementById('eggArea');
+        const childCellPanel = document.getElementById('childCellPanel');
+        const childCell = document.getElementById('childCell');
+        const dadRect = document.getElementById('dadPanel').getBoundingClientRect();
+        const momRect = document.getElementById('momPanel').getBoundingClientRect();
+        const childRect = childCellPanel.getBoundingClientRect();
+        const spermMoveX = childRect.left + childRect.width/2 - (dadRect.left + dadRect.width/2);
+        const eggMoveX = childRect.left + childRect.width/2 - (momRect.left + momRect.width/2);
+
+        sperm.style.transform = `translateX(${spermMoveX}px) rotate(90deg) scale(0.8)`;
+        egg.style.transform = `translateX(${eggMoveX}px) scale(1.1)`;
+
+        setTimeout(() => {
+            sperm.style.opacity = '0';
+            egg.style.transform = `translateX(${eggMoveX}px) scale(1.3)`;
+            egg.style.backgroundColor = '#f1c40f';
+        }, 1000);
+
+        setTimeout(() => {
+            egg.style.opacity = '0';
+            childCellPanel.style.visibility = 'visible';
+            childCellPanel.style.opacity = '1';
+            const allChrs = [...Array.from(sperm.querySelectorAll('.chromosome')), ...Array.from(egg.querySelectorAll('.chromosome'))];
+            allChrs.sort((a, b) => (a.dataset.type !== b.dataset.type) ? a.dataset.type - b.dataset.type : (a.dataset.side === 'dad' ? -1 : 1));
+
+            allChrs.forEach((c, i) => {
+                c.style.position = 'absolute'; c.style.transform = 'scale(1.0)';
+                const pairIndex = Math.floor(i / 2); const offsetInPair = i % 2;
+                // 拉開間距並統一標籤靠左
+                c.style.left = (25 + pairIndex * 95 + offsetInPair * 35) + 'px';
+                const offsetTop = c.classList.contains('long') ? 65 : (c.classList.contains('mid') ? 45 : 30);
+                c.style.top = (140 - offsetTop) + 'px';
+                
+                const labels = c.querySelectorAll('.gene-label');
+                labels.forEach(l => { l.style.left = '-20px'; l.style.right = 'auto'; });
+                childCell.appendChild(c);
+            });
+            renderMonster('childMonster', collectGenesFromDiv('childCell'));
+            document.getElementById('childPanel').style.visibility = 'visible';
+            document.getElementById('childPanel').style.opacity = '1';
+        }, 2000);
+    }
+
+    function resetExperiment() {
+        document.getElementById('mainLab').classList.remove('dragging-disabled');
+        document.getElementById('childCellPanel').style.cssText = "visibility: hidden; opacity: 0;";
+        document.getElementById('childPanel').style.cssText = "visibility: hidden; opacity: 0;";
+        document.getElementById('childCell').innerHTML = '';
+        document.getElementById('spermArea').innerHTML = '';
+        document.getElementById('eggArea').innerHTML = '';
+        document.getElementById('childMonster').innerHTML = '';
+        const sperm = document.getElementById('spermArea');
+        const egg = document.getElementById('eggArea');
+        sperm.style.cssText = "transform: rotate(90deg); opacity: 1;";
+        egg.style.cssText = "transform: none; opacity: 1; background-color: rgba(255,255,255,0.8);";
+        init();
+        scanAll();
+    }
+
+    function renderMonster(containerId, genes) {
+        const view = document.getElementById(containerId);
+        view.innerHTML = '';
+        const isDom = (g) => genes.includes(g.toUpperCase());
+        if (!isDom('B')) addImg(view, imgFiles.wing, 'l-1');
+        addImg(view, isDom('D') ? imgFiles.hand2 : imgFiles.hand4, 'l-2');
+        addImg(view, isDom('F') ? imgFiles.legNo : imgFiles.legYes, 'l-3'); 
+        addImg(view, isDom('A') ? imgFiles.bodyGreen : imgFiles.bodyYellow, 'l-4');
+        addImg(view, isDom('H') ? imgFiles.eye2 : imgFiles.eye3, 'l-5');
+        if (isDom('E')) addImg(view, imgFiles.horn, 'l-6');
+        if (!isDom('G')) addImg(view, imgFiles.mark, 'l-7');
+    }
+
+    function addImg(parent, src, zClass) {
+        const img = document.createElement('img');
+        img.src = src; img.className = `monster-layer ${zClass}`;
+        img.onerror = () => { img.style.display = 'none'; };
+        parent.appendChild(img);
+    }
+    init();
+</script>
+</body>
+</html>
